@@ -1,20 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Client } from "@notionhq/client";
-import type {
-  PageObjectResponse,
-  PartialPageObjectResponse,
-  QueryDatabaseParameters,
-} from "@notionhq/client/build/src/api-endpoints";
+import {
+  Client,
+  isFullPage,
+  type PageObjectResponse,
+  type QueryDataSourceParameters,
+} from "@notionhq/client";
 
-const DEFAULT_COMPANIES = "3d6ad3f6-dd53-429d-9e48-00a942ac4e87";
-const DEFAULT_OPPORTUNITIES = "628797e3-2b04-4a26-b7b8-639ea1fff775";
-const DEFAULT_PROJECTS = "9d0645bc-2cd8-4930-9bc8-2c9fb25e8814";
-
-function isFullPage(
-  p: PageObjectResponse | PartialPageObjectResponse
-): p is PageObjectResponse {
-  return "properties" in p && !!p.properties;
-}
+/** Data source IDs (collection://… in Notion OS). Database page IDs differ. */
+const DEFAULT_COMPANIES_DS = "5c5b0b22-d824-4662-8f6e-fa0dc4791da2";
+const DEFAULT_OPPORTUNITIES_DS = "0134167b-980f-4bd2-9855-a65f1411bac5";
+const DEFAULT_PROJECTS_DS = "59cda2ad-65e3-44d4-aa4b-2fd7fc215890";
 
 function getTitle(props: PageObjectResponse["properties"], key: string): string {
   const p = props[key];
@@ -30,6 +25,7 @@ function getSelect(
 ): string | null {
   const p = props[key];
   if (p?.type === "select") return p.select?.name ?? null;
+  if (p?.type === "status") return p.status?.name ?? null;
   return null;
 }
 
@@ -52,22 +48,22 @@ function getDateStart(
   return null;
 }
 
-async function queryAllPages(
+async function queryAllDataSourcePages(
   client: Client,
-  databaseId: string,
-  filter?: QueryDatabaseParameters["filter"]
+  dataSourceId: string,
+  filter?: QueryDataSourceParameters["filter"]
 ) {
   const results: PageObjectResponse[] = [];
   let cursor: string | undefined;
   for (;;) {
-    const res = await client.databases.query({
-      database_id: databaseId,
+    const res = await client.dataSources.query({
+      data_source_id: dataSourceId,
       start_cursor: cursor,
       page_size: 100,
       ...(filter ? { filter } : {}),
     });
-    for (const p of res.results) {
-      if (isFullPage(p)) results.push(p);
+    for (const item of res.results) {
+      if (isFullPage(item)) results.push(item);
     }
     if (!res.has_more) break;
     cursor = res.next_cursor ?? undefined;
@@ -103,27 +99,32 @@ export default async function handler(
   const token = process.env.NOTION_TOKEN;
   if (!token) {
     res.status(500).json({
-      error: "Missing NOTION_TOKEN. Add it in Vercel env or .env.local for vercel dev.",
+      error:
+        "Missing NOTION_TOKEN. Add it in Vercel env or .env.local for vercel dev.",
     });
     return;
   }
 
-  const companiesId =
-    process.env.NOTION_COMPANIES_DB_ID ?? DEFAULT_COMPANIES;
-  const opportunitiesId =
-    process.env.NOTION_OPPORTUNITIES_DB_ID ?? DEFAULT_OPPORTUNITIES;
-  const projectsId = process.env.NOTION_PROJECTS_DB_ID ?? DEFAULT_PROJECTS;
+  const companiesDs =
+    process.env.NOTION_COMPANIES_DATA_SOURCE_ID ?? DEFAULT_COMPANIES_DS;
+  const opportunitiesDs =
+    process.env.NOTION_OPPORTUNITIES_DATA_SOURCE_ID ??
+    DEFAULT_OPPORTUNITIES_DS;
+  const projectsDs =
+    process.env.NOTION_PROJECTS_DATA_SOURCE_ID ?? DEFAULT_PROJECTS_DS;
 
-  const client = new Client({ auth: token, notionVersion: "2022-06-28" });
+  const client = new Client({ auth: token });
 
   try {
+    const wonFilter: QueryDataSourceParameters["filter"] = {
+      property: "Stage",
+      select: { equals: "Won" },
+    };
+
     const [companyPages, opportunityPages, projectPages] = await Promise.all([
-      queryAllPages(client, companiesId),
-      queryAllPages(client, opportunitiesId, {
-        property: "Stage",
-        select: { equals: "Won" },
-      }),
-      queryAllPages(client, projectsId),
+      queryAllDataSourcePages(client, companiesDs),
+      queryAllDataSourcePages(client, opportunitiesDs, wonFilter),
+      queryAllDataSourcePages(client, projectsDs),
     ]);
 
     const currentLeads = companyPages.filter(
