@@ -70,12 +70,11 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           helpTitle="MRR (monthly recurring revenue)"
           help={
             <>
-              <p className="font-semibold text-foreground">Hosting only</p>
-              <p className="mt-1.5">
-                Sums <strong className="text-foreground">MRR</strong> on Notion projects that are{" "}
-                <strong className="text-foreground">Ongoing</strong> and whose{" "}
-                <strong className="text-foreground">Type</strong> matches hosting. One-off website
-                builds are excluded.
+              <p>
+                Sums the <strong className="text-foreground">MRR</strong> field on every Notion project
+                whose <strong className="text-foreground">Status</strong> is{" "}
+                <strong className="text-foreground">Ongoing</strong> (retainers, hosting, and any other
+                recurring work with MRR set).
               </p>
             </>
           }
@@ -187,7 +186,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
       >
         <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] lg:min-h-0">
           <div className="flex shrink-0 items-center gap-1.5 border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[rgba(245,245,243,0.45)]">
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
               Proposals out
             </h2>
             <HelpTip label="Proposals out table" iconClassName="size-3">
@@ -200,7 +199,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full border-collapse text-left text-[13px]">
-              <thead className="sticky top-0 z-[1] bg-[#121216] text-[10px] font-semibold uppercase tracking-wide text-[rgba(245,245,243,0.38)]">
+              <thead className="sticky top-0 z-[1] bg-[#121216] text-[11px] font-semibold uppercase tracking-[0.06em] text-[rgba(245,245,243,0.62)]">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Company</th>
                   <th className="px-2 py-2 font-semibold">Value</th>
@@ -273,7 +272,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
 
         <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] lg:min-h-0">
           <div className="flex shrink-0 items-center gap-1.5 border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-[rgba(245,245,243,0.45)]">
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
               Active projects
             </h2>
             <HelpTip label="Active projects table" iconClassName="size-3">
@@ -289,7 +288,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full border-collapse text-left text-[13px]">
-              <thead className="sticky top-0 z-[1] bg-[#121216] text-[10px] font-semibold uppercase tracking-wide text-[rgba(245,245,243,0.38)]">
+              <thead className="sticky top-0 z-[1] bg-[#121216] text-[11px] font-semibold uppercase tracking-[0.06em] text-[rgba(245,245,243,0.62)]">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Project</th>
                   <th className="px-2 py-2 font-semibold">Client</th>
@@ -352,7 +351,7 @@ function HeroStat({
   return (
     <div className="text-center md:text-left">
       <div className="flex items-center justify-center gap-1.5 md:justify-start">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(245,245,243,0.38)]">
+        <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
           {label}
         </p>
         <HelpTip label={helpTitle}>{help}</HelpTip>
@@ -390,7 +389,7 @@ function ActivityTile({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.38)]">
+        <p className="min-w-0 flex-1 text-[12px] font-bold uppercase tracking-[0.11em] text-[rgba(245,245,243,0.68)]">
           {label}
         </p>
         <HelpTip label={helpTitle} className="mt-0.5">

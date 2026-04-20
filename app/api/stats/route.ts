@@ -62,18 +62,6 @@ function getOppStage(props: PageObjectResponse["properties"]): string | null {
   return getSelect(props, "Stage") ?? getSelect(props, "Deal stage");
 }
 
-function serviceBucketFromType(type: string | null): "hosting" | "website" | null {
-  if (!type) return null;
-  const t = type.toLowerCase();
-  if (t.includes("hosting")) return "hosting";
-  if (t.includes("website") || /\bweb\b/.test(t)) return "website";
-  return null;
-}
-
-function getProjectType(props: PageObjectResponse["properties"]): string | null {
-  return getSelect(props, "Type") ?? getSelect(props, "Category");
-}
-
 function wonDealDate(page: PageObjectResponse): Date {
   const expected = getDateStart(page.properties, "Expected Close Date");
   if (expected) {
@@ -276,8 +264,7 @@ export async function GET() {
       }
 
       if (status === "Ongoing" && m != null) {
-        const bucket = serviceBucketFromType(getProjectType(p.properties));
-        if (bucket === "hosting") mrr += m;
+        mrr += m;
       }
 
       if (status && activeStatuses.has(status)) {
