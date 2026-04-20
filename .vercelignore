@@ -1,0 +1,4 @@
+# Do not upload local env to Vercel (set NOTION_TOKEN in Project → Settings → Environment Variables)
+.env
+.env.*
+!.env.example

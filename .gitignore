@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+out
+*.tsbuildinfo
 *.local
 
 # Editor directories and files
@@ -22,5 +25,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env*.local
+
+# Secrets — use Vercel env / `.env.example` only in git
+.env
+.env.*
+!.env.example
+
 .vercel
