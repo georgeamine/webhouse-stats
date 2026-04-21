@@ -1,9 +1,54 @@
 /** Executive dashboard — one screen, three zones (API `/api/stats`). */
+export type XeroStatsBlock =
+  | { disabled: true }
+  | {
+      cashCollectedMtd: number;
+      /** e.g. "April 2026" — calendar month for MTD (reporting TZ). */
+      cashMtdPeriodLabel: string;
+      cashCollectedQtd: number;
+      /** e.g. "Q2 · Oct – Dec 2025" — current AU fiscal quarter. */
+      cashQtdPeriodLabel: string;
+      /** Cash collected FYTD — Australian financial year (Jul 1–Jun 30). */
+      cashCollectedFyYtd: number;
+      /** e.g. "FY 2025–26" — AU financial year label. */
+      cashFyPeriodLabel: string;
+      cashCollectedPriorMonthToDate: number;
+      /** Same elapsed time in the previous fiscal quarter (for QTD %). */
+      cashCollectedQtdPriorComparable: number;
+      /** Same elapsed time in the previous financial year (for YTD %). */
+      cashCollectedFyYtdPriorComparable: number;
+      cashDeltaVsPriorMonth: number;
+      /** P&L Total Income, accrual basis (same windows as cash). */
+      invoicedRevenueMtd: number;
+      invoicedRevenueQtd: number;
+      invoicedRevenueFyYtd: number;
+      invoicedPriorMonthToDate: number;
+      invoicedQtdPriorComparable: number;
+      invoicedFyYtdPriorComparable: number;
+      invoicedDeltaVsPriorMonth: number;
+      outstandingAr: number;
+      /** Rolling 24 calendar months (oldest → newest); Xero returns 12 monthly columns per request (base + 11 comparisons), merged twice for coverage. UI: last 6 / 12 / 24. */
+      revenueCashByMonth: {
+        month: string;
+        label: string;
+        invoicedRevenue: number;
+        cashCollected: number;
+        gap: number;
+      }[];
+    }
+  | { error: string };
+
+/** Live Xero metrics (not disabled, not error). */
+export type XeroStatsSuccess = Extract<XeroStatsBlock, { cashCollectedMtd: number }>;
+
 export type DashboardStats = {
   generatedAt: string;
 
   /** Optional one-line urgency above the hero row. */
   todaysFocus: string | null;
+
+  /** Xero Accounting: live data, API error, or disabled until env is set. */
+  xero: XeroStatsBlock;
 
   hero: {
     mrr: number;

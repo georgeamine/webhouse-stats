@@ -6,6 +6,9 @@ import {
   type QueryDataSourceParameters,
 } from "@notionhq/client";
 
+import type { XeroStatsBlock } from "@/lib/types";
+import { fetchXeroDashboardSlice, xeroEnvConfigured } from "@/lib/xero-stats";
+
 const DEFAULT_COMPANIES_DS = "5c5b0b22-d824-4662-8f6e-fa0dc4791da2";
 const DEFAULT_OPPORTUNITIES_DS = "0134167b-980f-4bd2-9855-a65f1411bac5";
 const DEFAULT_PROJECTS_DS = "59cda2ad-65e3-44d4-aa4b-2fd7fc215890";
@@ -363,6 +366,10 @@ export async function GET() {
 
     const mrrPositiveHighlight = wonMtdValue > 0;
 
+    const xero: XeroStatsBlock = xeroEnvConfigured()
+      ? await fetchXeroDashboardSlice()
+      : { disabled: true };
+
     const oldProposalCount = proposalRows.filter((r) => r.stageAgeAlert).length;
     let todaysFocus: string | null = null;
     if (oldProposalCount >= 1) {
@@ -375,6 +382,7 @@ export async function GET() {
       {
         generatedAt: now.toISOString(),
         todaysFocus,
+        xero,
         hero: {
           mrr,
           mrrSubline: wonMtdStr,
