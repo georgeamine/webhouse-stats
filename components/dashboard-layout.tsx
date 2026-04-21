@@ -274,7 +274,7 @@ function XeroPnlHeroCard({ xero }: { xero: XeroStatsSuccess }) {
               </p>
               <p className="mt-2">
                 Use the <strong className="text-foreground">settings</strong> control to set monthly, quarterly, and FY
-                cash goals (stored in this browser).
+                cash goals (stored on the server so every device sees the same targets).
               </p>
               <p className="mt-2">
                 Goals apply to cash (payments-only) only. The toggle switches Total Income between cash and accrual;
@@ -604,8 +604,51 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
       {/* Zone 1 — Hero */}
       <section
         aria-label="Key metrics"
-        className="grid shrink-0 grid-cols-1 gap-6 md:grid-cols-3 md:gap-4"
+        className="grid shrink-0 grid-cols-2 gap-4 md:grid-cols-4 md:gap-4"
       >
+        <HeroStat
+          label="Receivables"
+          helpTitle="Receivables (Xero AR)"
+          help={
+            <>
+              <p>
+                Total <strong className="text-foreground">AmountDue</strong> across authorised
+                Accounts Receivable (<strong className="text-foreground">ACCREC</strong>) invoices
+                in Xero. Reflects what customers currently owe, regardless of due date.
+              </p>
+            </>
+          }
+          value={isXeroSuccess(data.xero) ? aud(data.xero.outstandingAr, true) : "—"}
+          subline={
+            isXeroSuccess(data.xero)
+              ? "Total AR outstanding"
+              : "Xero not connected"
+          }
+        />
+        <HeroStat
+          label="Overdue"
+          helpTitle="Overdue receivables"
+          help={
+            <>
+              <p>
+                Sum of <strong className="text-foreground">AmountDue</strong> on Xero AR invoices
+                whose <strong className="text-foreground">due date</strong> has already passed
+                (reporting timezone). Chase these first.
+              </p>
+            </>
+          }
+          value={isXeroSuccess(data.xero) ? aud(data.xero.overdueAr, true) : "—"}
+          valueClassName={
+            isXeroSuccess(data.xero) && data.xero.overdueAr > 0
+              ? "text-[#ff5757] drop-shadow-[0_0_24px_rgba(255,87,87,0.18)]"
+              : ""
+          }
+          subline={
+            isXeroSuccess(data.xero)
+              ? `${data.xero.overdueArCount} invoice${data.xero.overdueArCount === 1 ? "" : "s"} past due`
+              : "Xero not connected"
+          }
+        />
         <HeroStat
           label="MRR"
           helpTitle="MRR (monthly recurring revenue)"
@@ -624,23 +667,6 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
             h.mrrPositiveHighlight ? "text-[#b8ff57] drop-shadow-[0_0_24px_rgba(184,255,87,0.25)]" : ""
           }
           subline={h.mrrSubline}
-        />
-        <HeroStat
-          label="Signed backlog"
-          helpTitle="Signed backlog"
-          help={
-            <>
-              <p>
-                Total <strong className="text-foreground">Total Value</strong> across projects in{" "}
-                <strong className="text-foreground">Planning</strong>,{" "}
-                <strong className="text-foreground">Active</strong>, or{" "}
-                <strong className="text-foreground">Ongoing</strong>. The subline is how many such
-                projects.
-              </p>
-            </>
-          }
-          value={aud(h.signedBacklogValue, true)}
-          subline={`${h.signedBacklogProjectCount} project${h.signedBacklogProjectCount === 1 ? "" : "s"}`}
         />
         <HeroStat
           label="Open pipeline"
@@ -899,7 +925,10 @@ function HeroStat({
       </div>
       <p
         style={{ letterSpacing: "-0.03em" }}
-        className={`mt-2 text-[clamp(2rem,5vw,3.25rem)] font-black leading-none tabular-nums text-foreground ${valueClassName}`}
+        className={cn(
+          "mt-2 text-[clamp(2rem,5vw,3.25rem)] font-black leading-none tabular-nums",
+          valueClassName || "text-foreground"
+        )}
       >
         {value}
       </p>

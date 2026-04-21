@@ -243,10 +243,6 @@ export async function GET() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     let mrr = 0;
-    let signedBacklogValue = 0;
-    let signedBacklogProjectCount = 0;
-
-    const backlogStatuses = new Set(["Planning", "Active", "Ongoing"]);
 
     const activeStatuses = new Set(["Planning", "Active", "Ongoing"]);
     const activeProjectRows: {
@@ -258,13 +254,7 @@ export async function GET() {
 
     for (const p of projectPages) {
       const status = getSelect(p.properties, "Status");
-      const tv = getNumber(p.properties, "Total Value") ?? 0;
       const m = getNumber(p.properties, "MRR");
-
-      if (status && backlogStatuses.has(status)) {
-        signedBacklogValue += tv;
-        signedBacklogProjectCount += 1;
-      }
 
       if (status === "Ongoing" && m != null) {
         mrr += m;
@@ -387,8 +377,6 @@ export async function GET() {
           mrr,
           mrrSubline: wonMtdStr,
           mrrPositiveHighlight,
-          signedBacklogValue,
-          signedBacklogProjectCount,
           pipelineValue,
           pipelineDealCount,
         },

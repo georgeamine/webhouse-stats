@@ -34,6 +34,25 @@ function ymdString(y: number, m: number, day: number): string {
   return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** Xero may return dates as "YYYY-MM-DD" or the legacy "/Date(ts+zzzz)/" form. Normalise to YYYY-MM-DD. */
+function invoiceDueYmd(raw: unknown): string | null {
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    return ymdString(raw.getUTCFullYear(), raw.getUTCMonth() + 1, raw.getUTCDate());
+  }
+  if (typeof raw !== "string") return null;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const legacy = raw.match(/\/Date\((-?\d+)/);
+  if (legacy) {
+    const d = new Date(parseInt(legacy[1], 10));
+    if (!Number.isNaN(d.getTime())) {
+      return ymdString(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+  }
+  return null;
+}
+
 function addCalendarMonths(y: number, m: number, delta: number): { y: number; m: number } {
   let nm = m + delta;
   let ny = y;
@@ -690,12 +709,21 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
     const cashHero = derivePnlHeroFromMonthlyMap(cashByMonth, cy, cm);
     const accrualHero = derivePnlHeroFromMonthlyMap(accrualByMonth, cy, cm);
 
-    const arWhere = `Type=="ACCREC"&&AmountDue>0`;
+    const arWhere = `Type=="ACCREC"&&Status=="AUTHORISED"&&AmountDue>0`;
     const arInvoices = await paginateInvoices(xero, tenantId, arWhere);
     let outstandingAr = 0;
+    let overdueAr = 0;
+    let overdueArCount = 0;
+    const todayYmd = ymdString(cy, cm, zonedYMD(now, tz).day);
     for (const inv of arInvoices) {
       const due = inv.amountDue ?? 0;
-      if (due > 0) outstandingAr += due;
+      if (due <= 0) continue;
+      outstandingAr += due;
+      const dueYmd = invoiceDueYmd(inv.dueDate);
+      if (dueYmd && dueYmd < todayYmd) {
+        overdueAr += due;
+        overdueArCount += 1;
+      }
     }
 
     const monthly: XeroSuccess["revenueCashByMonth"] = [];
@@ -736,6 +764,8 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
       invoicedFyYtdPriorComparable: accrualHero.priorFyYtd,
       invoicedDeltaVsPriorMonth: accrualHero.mtd - accrualHero.priorMtd,
       outstandingAr,
+      overdueAr,
+      overdueArCount,
       revenueCashByMonth: monthly,
     };
   } catch (e: unknown) {

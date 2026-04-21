@@ -32,3 +32,6 @@ out
 !.env.example
 
 .vercel
+
+# SQLite (cash goals, etc.)
+/data/

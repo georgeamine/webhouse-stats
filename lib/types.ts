@@ -27,6 +27,10 @@ export type XeroStatsBlock =
       invoicedFyYtdPriorComparable: number;
       invoicedDeltaVsPriorMonth: number;
       outstandingAr: number;
+      /** Sum of AmountDue on ACCREC invoices whose due date is before today (reporting TZ). */
+      overdueAr: number;
+      /** Count of ACCREC invoices whose due date is before today. */
+      overdueArCount: number;
       /** Rolling 24 calendar months (oldest → newest); Xero returns 12 monthly columns per request (base + 11 comparisons), merged twice for coverage. UI: last 6 / 12 / 24. */
       revenueCashByMonth: {
         month: string;
@@ -56,9 +60,6 @@ export type DashboardStats = {
     mrrSubline: string;
     /** Whether to show positive (green) styling on MRR (e.g. any won MTD). */
     mrrPositiveHighlight: boolean;
-
-    signedBacklogValue: number;
-    signedBacklogProjectCount: number;
 
     pipelineValue: number;
     pipelineDealCount: number;
