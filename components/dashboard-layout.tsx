@@ -274,7 +274,7 @@ function XeroPnlHeroCard({ xero }: { xero: XeroStatsSuccess }) {
               </p>
               <p className="mt-2">
                 Use the <strong className="text-foreground">settings</strong> control to set monthly, quarterly, and FY
-                cash goals (stored on the server so every device sees the same targets).
+                cash goals (stored in this browser).
               </p>
               <p className="mt-2">
                 Goals apply to cash (payments-only) only. The toggle switches Total Income between cash and accrual;

@@ -33,5 +33,5 @@ out
 
 .vercel
 
-# SQLite (cash goals, etc.)
+# Local SQLite / data dir (if recreated)
 /data/
