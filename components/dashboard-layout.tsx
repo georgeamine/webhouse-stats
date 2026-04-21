@@ -544,7 +544,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                     axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
                   />
                   <ChartTooltip
-                    cursor={false}
+                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
                     content={
                       <ChartTooltipContent
                         className="border-white/10 bg-[#1a1a1f]"
@@ -573,6 +573,12 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                     fill="var(--color-invoicedRevenue)"
                     radius={[4, 4, 0, 0]}
                     hide={isRevCashHidden("invoicedRevenue")}
+                    activeBar={{
+                      fill: "var(--color-invoicedRevenue)",
+                      stroke: "#b8ff57",
+                      strokeWidth: 2,
+                      style: { filter: "drop-shadow(0 0 10px rgba(184,255,87,0.55))" },
+                    }}
                   />
                   <Line
                     type="monotone"
@@ -580,6 +586,12 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                     stroke="var(--color-cashCollected)"
                     strokeWidth={2}
                     dot={{ r: 3, fill: "var(--color-cashCollected)" }}
+                    activeDot={{
+                      r: 6,
+                      fill: "var(--color-cashCollected)",
+                      stroke: "#0a0a0c",
+                      strokeWidth: 2,
+                    }}
                     hide={isRevCashHidden("cashCollected")}
                   />
                 </ComposedChart>
