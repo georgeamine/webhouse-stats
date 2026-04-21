@@ -6,7 +6,7 @@ import {
   type QueryDataSourceParameters,
 } from "@notionhq/client";
 
-import type { XeroStatsBlock } from "@/lib/types";
+import type { ActiveProjectGroupId, XeroStatsBlock } from "@/lib/types";
 import { fetchXeroDashboardSlice, xeroEnvConfigured } from "@/lib/xero-stats";
 
 const DEFAULT_COMPANIES_DS = "5c5b0b22-d824-4662-8f6e-fa0dc4791da2";
@@ -36,7 +36,22 @@ function getNumber(
   key: string
 ): number | null {
   const p = props[key];
-  if (p?.type === "number" && typeof p.number === "number") return p.number;
+  if (!p) return null;
+  if (p.type === "number" && typeof p.number === "number") return p.number;
+  if (p.type === "formula" && p.formula.type === "number" && typeof p.formula.number === "number") {
+    return p.formula.number;
+  }
+  return null;
+}
+
+function firstNumberFromKeys(
+  props: PageObjectResponse["properties"],
+  keys: readonly string[]
+): number | null {
+  for (const key of keys) {
+    const n = getNumber(props, key);
+    if (n != null) return n;
+  }
   return null;
 }
 
@@ -178,14 +193,67 @@ function projectClientName(
   return "—";
 }
 
-function projectEndDate(props: PageObjectResponse["properties"]): string | null {
-  return (
-    getDateStart(props, "End Date") ??
-    getDateStart(props, "Delivery Date") ??
-    getDateStart(props, "Due Date") ??
-    null
-  );
+/** MRR only when > 0 (0 or empty still reads project value fields). Otherwise common Notion value fields (number or formula). */
+const PROJECT_FIXED_VALUE_KEYS = [
+  "Value",
+  "Total Value",
+  "Total value",
+  "Budget",
+  "Contract value",
+  "Project value",
+  "Quote",
+  "Amount",
+  "Fee",
+  "Total",
+] as const;
+
+function projectValueAud(props: PageObjectResponse["properties"]): {
+  valueAud: number;
+  valueIsMrr: boolean;
+} {
+  const mrr = getNumber(props, "MRR");
+  if (mrr != null && mrr > 0) {
+    return { valueAud: mrr, valueIsMrr: true };
+  }
+  return {
+    valueAud: firstNumberFromKeys(props, PROJECT_FIXED_VALUE_KEYS) ?? 0,
+    valueIsMrr: false,
+  };
 }
+
+/** Buckets for Active projects UI. Optional Notion select (Engagement / Project type / Type) overrides Status. */
+function projectEngagementGroup(
+  props: PageObjectResponse["properties"],
+  status: string | null
+): ActiveProjectGroupId {
+  const explicit =
+    getSelect(props, "Engagement") ??
+    getSelect(props, "Project type") ??
+    getSelect(props, "Type");
+  if (explicit) {
+    const t = explicit.trim().toLowerCase().replace(/\s+/g, " ");
+    const compact = t.replace(/[\s-]/g, "");
+    if (t.includes("host")) return "hosting";
+    if (t.includes("one-off") || t === "one off" || compact === "oneoff")
+      return "oneOff";
+    if (t.includes("ongoing") || t === "retainer" || t === "recurring")
+      return "ongoing";
+  }
+  const s = status?.trim().toLowerCase() ?? "";
+  if (s === "ongoing") return "ongoing";
+  if (s === "hosting" || s.includes("hosting")) return "hosting";
+  if (s === "planning" || s === "active") return "oneOff";
+  return "oneOff";
+}
+
+const ACTIVE_PROJECT_GROUP_ORDER: {
+  id: ActiveProjectGroupId;
+  title: string;
+}[] = [
+  { id: "ongoing", title: "Ongoing" },
+  { id: "oneOff", title: "One-off" },
+  { id: "hosting", title: "Hosting" },
+];
 
 function projectArFields(props: PageObjectResponse["properties"]): {
   amount: number | null;
@@ -243,14 +311,28 @@ export async function GET() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     let mrr = 0;
+    let mrrProjectCount = 0;
 
-    const activeStatuses = new Set(["Planning", "Active", "Ongoing"]);
-    const activeProjectRows: {
-      project: string;
-      client: string;
-      status: string | null;
-      endDate: string | null;
-    }[] = [];
+    const activeStatuses = new Set([
+      "Planning",
+      "Active",
+      "Ongoing",
+      "Hosting",
+    ]);
+    const activeBuckets: Record<
+      ActiveProjectGroupId,
+      {
+        project: string;
+        client: string;
+        status: string | null;
+        valueAud: number;
+        valueIsMrr: boolean;
+      }[]
+    > = {
+      ongoing: [],
+      oneOff: [],
+      hosting: [],
+    };
 
     for (const p of projectPages) {
       const status = getSelect(p.properties, "Status");
@@ -258,23 +340,39 @@ export async function GET() {
 
       if (status === "Ongoing" && m != null) {
         mrr += m;
+        mrrProjectCount += 1;
       }
 
       if (status && activeStatuses.has(status)) {
-        activeProjectRows.push({
+        const { valueAud, valueIsMrr } = projectValueAud(p.properties);
+        const row = {
           project: getTitle(p.properties, "Name") || "—",
           client: projectClientName(p, companyById),
           status,
-          endDate: projectEndDate(p.properties),
-        });
+          valueAud,
+          valueIsMrr,
+        };
+        const g = projectEngagementGroup(p.properties, status);
+        activeBuckets[g].push(row);
       }
     }
 
-    activeProjectRows.sort((a, b) => {
-      if (!a.endDate && !b.endDate) return a.project.localeCompare(b.project);
-      if (!a.endDate) return 1;
-      if (!b.endDate) return -1;
-      return a.endDate.localeCompare(b.endDate);
+    for (const id of Object.keys(activeBuckets) as ActiveProjectGroupId[]) {
+      activeBuckets[id].sort((a, b) => {
+        if (b.valueAud !== a.valueAud) return b.valueAud - a.valueAud;
+        return a.project.localeCompare(b.project);
+      });
+    }
+
+    const activeProjectGroups = ACTIVE_PROJECT_GROUP_ORDER.map(({ id, title }) => {
+      const all = activeBuckets[id];
+      const totalValueAud = all.reduce((s, r) => s + r.valueAud, 0);
+      return {
+        id,
+        title,
+        totalValueAud,
+        rows: all.slice(0, MAX_TABLE_ROWS),
+      };
     });
 
     let pipelineValue = 0;
@@ -349,12 +447,7 @@ export async function GET() {
       currency: "AUD",
       maximumFractionDigits: 0,
     });
-    const wonMtdStr =
-      wonMtdValue <= 0
-        ? "No wins MTD"
-        : `+${audFmt.format(wonMtdValue)} won MTD`;
-
-    const mrrPositiveHighlight = wonMtdValue > 0;
+    const mrrPositiveHighlight = mrr > 0;
 
     const xero: XeroStatsBlock = xeroEnvConfigured()
       ? await fetchXeroDashboardSlice()
@@ -375,7 +468,7 @@ export async function GET() {
         xero,
         hero: {
           mrr,
-          mrrSubline: wonMtdStr,
+          mrrProjectCount,
           mrrPositiveHighlight,
           pipelineValue,
           pipelineDealCount,
@@ -390,7 +483,7 @@ export async function GET() {
           arAlert,
         },
         proposalsOut: proposalRows.slice(0, MAX_TABLE_ROWS),
-        activeProjects: activeProjectRows.slice(0, MAX_TABLE_ROWS),
+        activeProjectGroups,
       },
       {
         headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=120" },

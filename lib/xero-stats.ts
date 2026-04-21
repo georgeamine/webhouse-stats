@@ -712,12 +712,14 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
     const arWhere = `Type=="ACCREC"&&Status=="AUTHORISED"&&AmountDue>0`;
     const arInvoices = await paginateInvoices(xero, tenantId, arWhere);
     let outstandingAr = 0;
+    let outstandingArCount = 0;
     let overdueAr = 0;
     let overdueArCount = 0;
     const todayYmd = ymdString(cy, cm, zonedYMD(now, tz).day);
     for (const inv of arInvoices) {
       const due = inv.amountDue ?? 0;
       if (due <= 0) continue;
+      outstandingArCount += 1;
       outstandingAr += due;
       const dueYmd = invoiceDueYmd(inv.dueDate);
       if (dueYmd && dueYmd < todayYmd) {
@@ -764,6 +766,7 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
       invoicedFyYtdPriorComparable: accrualHero.priorFyYtd,
       invoicedDeltaVsPriorMonth: accrualHero.mtd - accrualHero.priorMtd,
       outstandingAr,
+      outstandingArCount,
       overdueAr,
       overdueArCount,
       revenueCashByMonth: monthly,

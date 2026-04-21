@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { Settings2 } from "lucide-react";
 
@@ -415,7 +415,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
   const isRevCashHidden = (key: XeroRevCashSeries) => hiddenRevCashSeries.includes(key);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-3 md:gap-5 md:py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4">
       {data.todaysFocus && (
         <div className="flex shrink-0 items-center justify-center gap-2 text-center">
           <p className="text-sm font-medium text-[#b8ff57]/90 md:text-base">
@@ -614,14 +614,15 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
               <p>
                 Total <strong className="text-foreground">AmountDue</strong> across authorised
                 Accounts Receivable (<strong className="text-foreground">ACCREC</strong>) invoices
-                in Xero. Reflects what customers currently owe, regardless of due date.
+                in Xero. Reflects what customers currently owe, regardless of due date. The subline
+                counts those invoices.
               </p>
             </>
           }
           value={isXeroSuccess(data.xero) ? aud(data.xero.outstandingAr, true) : "—"}
           subline={
             isXeroSuccess(data.xero)
-              ? "Total AR outstanding"
+              ? `${data.xero.outstandingArCount} invoice${data.xero.outstandingArCount === 1 ? "" : "s"}`
               : "Xero not connected"
           }
         />
@@ -658,7 +659,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                 Sums the <strong className="text-foreground">MRR</strong> field on every Notion project
                 whose <strong className="text-foreground">Status</strong> is{" "}
                 <strong className="text-foreground">Ongoing</strong> (retainers, hosting, and any other
-                recurring work with MRR set).
+                recurring work with MRR set). The subline counts those projects.
               </p>
             </>
           }
@@ -666,7 +667,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           valueClassName={
             h.mrrPositiveHighlight ? "text-[#b8ff57] drop-shadow-[0_0_24px_rgba(184,255,87,0.25)]" : ""
           }
-          subline={h.mrrSubline}
+          subline={`${h.mrrProjectCount} project${h.mrrProjectCount === 1 ? "" : "s"}`}
         />
         <HeroStat
           label="Open pipeline"
@@ -685,12 +686,13 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
         />
       </section>
 
-      {/* Zone 2 — Activity */}
+      {/* Zone 2 — Same grid as hero: md:grid-cols-4; left 2 cols = tiles + won/ar + proposals; right 2 cols = active */}
       <section
-        aria-label="This week"
-        className="grid shrink-0 grid-cols-2 gap-3 md:grid-cols-4 md:gap-4"
+        aria-label="Lists"
+        className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden md:grid-cols-4 md:grid-rows-[auto_auto_minmax(0,1fr)]"
       >
         <ActivityTile
+          className="md:col-start-1 md:row-start-1"
           label="Proposals out"
           helpTitle="Proposals out"
           help={
@@ -703,6 +705,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           value={`${a.proposalsOutCount} / ${aud(a.proposalsOutValue, true)}`}
         />
         <ActivityTile
+          className="md:col-start-2 md:row-start-1"
           label="New opps 7d"
           helpTitle="New opps (7 days)"
           help={
@@ -713,58 +716,53 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
           }
           value={String(a.newOpps7d)}
         />
-        <ActivityTile
-          label="Won MTD"
-          helpTitle="Won month-to-date"
-          help={
-            <p>
-              Opportunities in stage <strong className="text-foreground">Won</strong> whose win / close
-              date falls in the current calendar month (see API for date rules).
-            </p>
-          }
-          value={`${a.wonMtdCount} / ${aud(a.wonMtdValue, true)}`}
-        />
-        <ActivityTile
-          label="AR outstanding"
-          helpTitle="Accounts receivable outstanding"
-          help={
-            <>
+        <div className="grid shrink-0 grid-cols-2 gap-4 md:col-span-2 md:col-start-1 md:row-start-2">
+          <ActivityTile
+            label="Won MTD"
+            helpTitle="Won month-to-date"
+            help={
               <p>
-                Sums optional AR fields on projects: <strong className="text-foreground">AR</strong>,{" "}
-                <strong className="text-foreground">Accounts Receivable</strong>,{" "}
-                <strong className="text-foreground">Balance Due</strong>, or{" "}
-                <strong className="text-foreground">Outstanding</strong>. Shows &mdash; if none are set.
+                Opportunities in stage <strong className="text-foreground">Won</strong> whose win / close
+                date falls in the current calendar month (see API for date rules).
               </p>
-              <p className="mt-2 text-[#ff5757]">
-                Red tile when <strong>Days overdue</strong> or <strong>AR days overdue</strong> is over
-                30.
-              </p>
-            </>
-          }
-          value={a.arOutstanding != null ? aud(a.arOutstanding, true) : "—"}
-          alert={a.arAlert}
-        />
-      </section>
-
-      {/* Zone 3 — Tables */}
-      <section
-        aria-label="Lists"
-        className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-2 lg:gap-6"
-      >
-        <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] lg:min-h-0">
-          <div className="flex shrink-0 items-center gap-1.5 px-4 py-3">
-            <h2 className="text-base font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
-              Proposals out
-            </h2>
-            <HelpTip label="Proposals out table" iconClassName="size-3">
-              <p>
-                Same filter as the activity tile: open deals in proposal-like stages. Chase these
-                first. Rows go red when <strong className="text-[#ff5757]">stage age</strong> exceeds 10
-                days (see column help).
-              </p>
-            </HelpTip>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+            }
+            value={`${a.wonMtdCount} / ${aud(a.wonMtdValue, true)}`}
+          />
+          <ActivityTile
+            label="AR outstanding"
+            helpTitle="Accounts receivable outstanding"
+            help={
+              <>
+                <p>
+                  Sums optional AR fields on projects: <strong className="text-foreground">AR</strong>,{" "}
+                  <strong className="text-foreground">Accounts Receivable</strong>,{" "}
+                  <strong className="text-foreground">Balance Due</strong>, or{" "}
+                  <strong className="text-foreground">Outstanding</strong>. Shows &mdash; if none are set.
+                </p>
+                <p className="mt-2 text-[#ff5757]">
+                  Red tile when <strong>Days overdue</strong> or <strong>AR days overdue</strong> is over
+                  30.
+                </p>
+              </>
+            }
+            value={a.arOutstanding != null ? aud(a.arOutstanding, true) : "—"}
+            alert={a.arAlert}
+          />
+        </div>
+        <div className="flex min-h-[200px] min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] md:col-span-2 md:col-start-1 md:row-start-3">
+            <div className="flex shrink-0 items-center gap-1.5 px-4 py-3">
+              <h2 className="text-base font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
+                Proposals out
+              </h2>
+              <HelpTip label="Proposals out table" iconClassName="size-3">
+                <p>
+                  Same filter as the activity tile: open deals in proposal-like stages. Chase these
+                  first. Rows go red when <strong className="text-[#ff5757]">stage age</strong> exceeds 10
+                  days (see column help).
+                </p>
+              </HelpTip>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full border-collapse text-left text-base">
               <thead className="sticky top-0 z-[1] bg-[#121216] text-sm font-semibold uppercase tracking-[0.06em] text-[rgba(245,245,243,0.62)]">
                 <tr>
@@ -834,10 +832,10 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
-        </div>
 
-        <div className="flex min-h-[200px] flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] lg:min-h-0">
+        <div className="flex min-h-[200px] min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] md:col-span-2 md:col-start-3 md:row-start-1 md:row-span-3 md:min-h-0">
           <div className="flex shrink-0 items-center gap-1.5 px-4 py-3">
             <h2 className="text-base font-bold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
               Active projects
@@ -845,11 +843,22 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
             <HelpTip label="Active projects table" iconClassName="size-3">
               <p>
                 Projects in <strong className="text-foreground">Planning</strong>,{" "}
-                <strong className="text-foreground">Active</strong>, or{" "}
-                <strong className="text-foreground">Ongoing</strong>. Client comes from a company
-                relation or text fields. End date tries <strong className="text-foreground">End Date</strong>
-                , <strong className="text-foreground">Delivery Date</strong>, then{" "}
-                <strong className="text-foreground">Due Date</strong>.
+                <strong className="text-foreground">Active</strong>,{" "}
+                <strong className="text-foreground">Ongoing</strong>, or{" "}
+                <strong className="text-foreground">Hosting</strong>. Grouped by{" "}
+                <strong className="text-foreground">Engagement</strong>,{" "}
+                <strong className="text-foreground">Project type</strong>, or{" "}
+                <strong className="text-foreground">Type</strong> when set; otherwise{" "}
+                <strong className="text-foreground">Ongoing</strong> status → Ongoing,{" "}
+                <strong className="text-foreground">Hosting</strong> → Hosting, and{" "}
+                <strong className="text-foreground">Planning</strong> /{" "}
+                <strong className="text-foreground">Active</strong> → One-off.{" "}
+                <strong className="text-foreground">Value</strong> uses MRR when it&apos;s greater
+                than zero (shown with <strong className="text-foreground">/m</strong>); otherwise the
+                first of Value, Total Value, Total value, Budget, Contract value, Project value,
+                Quote, Amount, Fee, or Total. Group subtotals sum all projects in that group (not
+                only the rows
+                shown).
               </p>
             </HelpTip>
           </div>
@@ -860,36 +869,64 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                   <th className="px-4 py-2 font-semibold">Project</th>
                   <th className="px-2 py-2 font-semibold">Client</th>
                   <th className="px-2 py-2 font-semibold">Status</th>
-                  <th className="px-4 py-2 font-semibold">End date</th>
+                  <th className="px-4 py-2 text-right font-semibold">Value</th>
                 </tr>
               </thead>
               <tbody>
-                {data.activeProjects.length === 0 ? (
+                {data.activeProjectGroups.every((g) => g.rows.length === 0) ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-[rgba(245,245,243,0.35)]">
                       No active projects
                     </td>
                   </tr>
                 ) : (
-                  data.activeProjects.map((row, i) => (
-                    <tr
-                      key={i}
-                      className="border-t border-[rgba(255,255,255,0.05)]"
-                    >
-                      <td className="max-w-[140px] truncate px-4 py-2.5 font-medium">
-                        {row.project}
-                      </td>
-                      <td className="max-w-[120px] truncate px-2 py-2.5 text-[rgba(245,245,243,0.8)]">
-                        {row.client}
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-2.5 text-[rgba(245,245,243,0.65)]">
-                        {row.status ?? "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-[rgba(245,245,243,0.75)]">
-                        {fmtDate(row.endDate)}
-                      </td>
-                    </tr>
-                  ))
+                  data.activeProjectGroups.map((g) =>
+                    g.rows.length === 0 ? null : (
+                      <Fragment key={g.id}>
+                        <tr className="border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">
+                          <td
+                            colSpan={4}
+                            className="px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-[rgba(245,245,243,0.5)]"
+                          >
+                            {g.title}
+                          </td>
+                        </tr>
+                        {g.rows.map((row, i) => (
+                          <tr
+                            key={`${g.id}-${i}`}
+                            className="border-t border-[rgba(255,255,255,0.05)]"
+                          >
+                            <td className="max-w-[140px] truncate px-4 py-2.5 font-medium">
+                              {row.project}
+                            </td>
+                            <td className="max-w-[120px] truncate px-2 py-2.5 text-[rgba(245,245,243,0.8)]">
+                              {row.client}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2.5 text-[rgba(245,245,243,0.65)]">
+                              {row.status ?? "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[rgba(245,245,243,0.85)]">
+                              {aud(row.valueAud, true)}
+                              {row.valueIsMrr ? (
+                                <span className="text-[rgba(245,245,243,0.45)]">/m</span>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
+                          <td
+                            colSpan={3}
+                            className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-[0.06em] text-[rgba(245,245,243,0.42)]"
+                          >
+                            Subtotal
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2 text-right text-base font-semibold tabular-nums text-[rgba(245,245,243,0.92)]">
+                            {aud(g.totalValueAud, true)}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    )
+                  )
                 )}
               </tbody>
             </table>
@@ -943,33 +980,34 @@ function ActivityTile({
   alert,
   help,
   helpTitle,
+  className,
 }: {
   label: string;
   value: string;
   alert?: boolean;
   help: ReactNode;
   helpTitle: string;
+  className?: string;
 }) {
   return (
     <div
-      className={`rounded-xl border px-3 py-3 md:px-4 md:py-4 ${
-        alert
-          ? "border-[#ff5757]/40 bg-[rgba(255,87,87,0.08)]"
-          : "border-[rgba(255,255,255,0.1)] bg-[#141414]"
-      }`}
+      className={cn(
+        "rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] px-4 py-4",
+        alert && "border-[#ff5757]/40 bg-[rgba(255,87,87,0.08)]",
+        className
+      )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 text-sm font-bold uppercase tracking-[0.11em] text-[rgba(245,245,243,0.68)]">
+      <div className="flex items-center gap-1.5">
+        <p className="text-base font-semibold uppercase tracking-[0.12em] text-[rgba(245,245,243,0.72)]">
           {label}
         </p>
-        <HelpTip label={helpTitle} className="mt-0.5">
-          {help}
-        </HelpTip>
+        <HelpTip label={helpTitle}>{help}</HelpTip>
       </div>
       <p
-        className={`mt-2 text-[clamp(1rem,2.5vw,1.35rem)] font-black tabular-nums leading-tight ${
+        className={cn(
+          "mt-2 text-[clamp(1.25rem,3vw,1.75rem)] font-black tabular-nums leading-none tracking-[-0.03em]",
           alert ? "text-[#ff5757]" : "text-foreground"
-        }`}
+        )}
       >
         {value}
       </p>

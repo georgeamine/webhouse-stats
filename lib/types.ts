@@ -27,6 +27,8 @@ export type XeroStatsBlock =
       invoicedFyYtdPriorComparable: number;
       invoicedDeltaVsPriorMonth: number;
       outstandingAr: number;
+      /** Authorised ACCREC invoices with AmountDue > 0 (same rows summed for `outstandingAr`). */
+      outstandingArCount: number;
       /** Sum of AmountDue on ACCREC invoices whose due date is before today (reporting TZ). */
       overdueAr: number;
       /** Count of ACCREC invoices whose due date is before today. */
@@ -45,6 +47,8 @@ export type XeroStatsBlock =
 /** Live Xero metrics (not disabled, not error). */
 export type XeroStatsSuccess = Extract<XeroStatsBlock, { cashCollectedMtd: number }>;
 
+export type ActiveProjectGroupId = "ongoing" | "oneOff" | "hosting";
+
 export type DashboardStats = {
   generatedAt: string;
 
@@ -56,9 +60,9 @@ export type DashboardStats = {
 
   hero: {
     mrr: number;
-    /** e.g. "+$45k won MTD" — momentum proxy when true MoM MRR isn’t in Notion. */
-    mrrSubline: string;
-    /** Whether to show positive (green) styling on MRR (e.g. any won MTD). */
+    /** Ongoing Notion projects with an MRR value (same rows summed for `mrr`). */
+    mrrProjectCount: number;
+    /** Whether to show positive (green) styling on MRR (non-zero total). */
     mrrPositiveHighlight: boolean;
 
     pipelineValue: number;
@@ -86,10 +90,20 @@ export type DashboardStats = {
     expectedClose: string | null;
   }[];
 
-  activeProjects: {
-    project: string;
-    client: string;
-    status: string | null;
-    endDate: string | null;
+  /** Fixed order: Ongoing → One-off → Hosting. */
+  activeProjectGroups: {
+    id: ActiveProjectGroupId;
+    title: string;
+    /** Sum of `valueAud` for every project in this group (not capped by table row limit). */
+    totalValueAud: number;
+    rows: {
+      project: string;
+      client: string;
+      status: string | null;
+      /** Prefer Notion MRR; otherwise Value / Total Value / other amount fields (AUD). */
+      valueAud: number;
+      /** True when `valueAud` comes from the MRR field (UI shows `/m`). */
+      valueIsMrr: boolean;
+    }[];
   }[];
 };
