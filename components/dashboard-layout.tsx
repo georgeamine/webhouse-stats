@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { Settings2 } from "lucide-react";
 
@@ -42,6 +42,31 @@ const xeroRevCashChartConfig = {
 } satisfies ChartConfig;
 
 type XeroRevCashSeries = keyof typeof xeroRevCashChartConfig;
+type RevCashBreakdown = "monthly" | "quarterly";
+
+type RevCashRow = {
+  month: string;
+  label: string;
+  invoicedRevenue: number;
+  cashCollected: number;
+  gap: number;
+};
+
+function monthToFiscalQuarter(monthKey: string): { quarter: 1 | 2 | 3 | 4; fyStartYear: number } | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+  const quarter = (month >= 7 ? Math.floor((month - 7) / 3) : Math.floor((month + 5) / 3)) + 1;
+  const fyStartYear = month >= 7 ? year : year - 1;
+  return { quarter: quarter as 1 | 2 | 3 | 4, fyStartYear };
+}
+
+function fiscalQuarterLabel(fyStartYear: number, quarter: 1 | 2 | 3 | 4): string {
+  const fyShort = String(fyStartYear + 1).slice(-2);
+  return `FY${fyShort} Q${quarter}`;
+}
 
 function aud(n: number, compact = false): string {
   if (compact) {
@@ -404,6 +429,7 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
   const h = data.hero;
   const a = data.activity;
   const [revCashWindow, setRevCashWindow] = useState<6 | 12 | 24>(6);
+  const [revCashBreakdown, setRevCashBreakdown] = useState<RevCashBreakdown>("monthly");
   const [hiddenRevCashSeries, setHiddenRevCashSeries] = useState<XeroRevCashSeries[]>([]);
   const toggleRevCashSeries = (key: string) => {
     setHiddenRevCashSeries((prev) =>
@@ -413,6 +439,41 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
     );
   };
   const isRevCashHidden = (key: XeroRevCashSeries) => hiddenRevCashSeries.includes(key);
+  const revCashChartData = useMemo<RevCashRow[]>(() => {
+    if (!isXeroSuccess(data.xero)) return [];
+    const monthlyRows = data.xero.revenueCashByMonth.slice(-revCashWindow);
+    if (revCashBreakdown === "monthly") return monthlyRows;
+
+    const byQuarter = new Map<
+      string,
+      { fyStartYear: number; quarter: 1 | 2 | 3 | 4; invoicedRevenue: number; cashCollected: number }
+    >();
+    for (const row of monthlyRows) {
+      const q = monthToFiscalQuarter(row.month);
+      if (!q) continue;
+      const key = `${q.fyStartYear}-Q${q.quarter}`;
+      const prev = byQuarter.get(key);
+      if (prev) {
+        prev.invoicedRevenue += row.invoicedRevenue;
+        prev.cashCollected += row.cashCollected;
+      } else {
+        byQuarter.set(key, {
+          fyStartYear: q.fyStartYear,
+          quarter: q.quarter,
+          invoicedRevenue: row.invoicedRevenue,
+          cashCollected: row.cashCollected,
+        });
+      }
+    }
+
+    return [...byQuarter.values()].map((row) => ({
+      month: `${row.fyStartYear}-Q${row.quarter}`,
+      label: fiscalQuarterLabel(row.fyStartYear, row.quarter),
+      invoicedRevenue: row.invoicedRevenue,
+      cashCollected: row.cashCollected,
+      gap: row.invoicedRevenue - row.cashCollected,
+    }));
+  }, [data.xero, revCashBreakdown, revCashWindow]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4">
@@ -495,22 +556,56 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                     </p>
                   </HelpTip>
                 </div>
-                <label className="flex shrink-0 items-center gap-2 text-sm text-[rgba(245,245,243,0.5)]">
-                  <span className="sr-only">Chart period</span>
-                  <select
-                    value={revCashWindow}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (v === 6 || v === 12 || v === 24) setRevCashWindow(v);
-                    }}
-                    className="cursor-pointer rounded-md border border-[rgba(255,255,255,0.14)] bg-[#1a1a1f] px-2.5 py-1.5 text-sm font-semibold text-[rgba(245,245,243,0.88)] outline-none hover:border-[rgba(255,255,255,0.22)] focus-visible:ring-2 focus-visible:ring-[rgba(184,255,87,0.25)]"
-                    aria-label="Chart time period"
+                <div className="flex shrink-0 items-center gap-2">
+                  <div
+                    className="flex shrink-0 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[rgba(0,0,0,0.25)] p-0.5"
+                    role="group"
+                    aria-label="Chart breakdown"
                   >
-                    <option value={6}>Last 6 months</option>
-                    <option value={12}>Last 12 months</option>
-                    <option value={24}>Last 24 months</option>
-                  </select>
-                </label>
+                    <button
+                      type="button"
+                      aria-pressed={revCashBreakdown === "monthly"}
+                      onClick={() => setRevCashBreakdown("monthly")}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 text-sm font-semibold uppercase tracking-[0.08em] transition-colors",
+                        revCashBreakdown === "monthly"
+                          ? "bg-[rgba(184,255,87,0.18)] text-[#b8ff57]"
+                          : "text-[rgba(245,245,243,0.45)] hover:text-[rgba(245,245,243,0.72)]"
+                      )}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={revCashBreakdown === "quarterly"}
+                      onClick={() => setRevCashBreakdown("quarterly")}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 text-sm font-semibold uppercase tracking-[0.08em] transition-colors",
+                        revCashBreakdown === "quarterly"
+                          ? "bg-[rgba(184,255,87,0.18)] text-[#b8ff57]"
+                          : "text-[rgba(245,245,243,0.45)] hover:text-[rgba(245,245,243,0.72)]"
+                      )}
+                    >
+                      Quarterly
+                    </button>
+                  </div>
+                  <label className="flex shrink-0 items-center gap-2 text-sm text-[rgba(245,245,243,0.5)]">
+                    <span className="sr-only">Chart period</span>
+                    <select
+                      value={revCashWindow}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (v === 6 || v === 12 || v === 24) setRevCashWindow(v);
+                      }}
+                      className="cursor-pointer rounded-md border border-[rgba(255,255,255,0.14)] bg-[#1a1a1f] px-2.5 py-1.5 text-sm font-semibold text-[rgba(245,245,243,0.88)] outline-none hover:border-[rgba(255,255,255,0.22)] focus-visible:ring-2 focus-visible:ring-[rgba(184,255,87,0.25)]"
+                      aria-label="Chart time period"
+                    >
+                      <option value={6}>Last 6 months</option>
+                      <option value={12}>Last 12 months</option>
+                      <option value={24}>Last 24 months</option>
+                    </select>
+                  </label>
+                </div>
               </div>
               <ChartContainer
                 id="xero-rev-cash"
@@ -519,19 +614,26 @@ export function DashboardLayout({ data }: { data: DashboardStats }) {
                 className="aspect-auto min-h-0 w-full flex-1 !aspect-auto [&_.recharts-legend-item-text]:text-[rgba(245,245,243,0.72)]"
               >
                 <ComposedChart
-                  data={data.xero.revenueCashByMonth.slice(-revCashWindow)}
+                  data={revCashChartData}
                   margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
                 >
                   <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
                   <XAxis
                     dataKey="label"
-                    angle={revCashWindow >= 12 ? -38 : 0}
-                    textAnchor={revCashWindow >= 12 ? "end" : "middle"}
-                    height={revCashWindow >= 12 ? 54 : 30}
+                    angle={revCashBreakdown === "monthly" && revCashWindow >= 12 ? -38 : 0}
+                    textAnchor={revCashBreakdown === "monthly" && revCashWindow >= 12 ? "end" : "middle"}
+                    height={revCashBreakdown === "monthly" && revCashWindow >= 12 ? 54 : 30}
                     interval={0}
                     tick={{
                       fill: "rgba(245,245,243,0.55)",
-                      fontSize: revCashWindow >= 24 ? 9 : revCashWindow > 6 ? 10 : 11,
+                      fontSize:
+                        revCashBreakdown === "monthly"
+                          ? revCashWindow >= 24
+                            ? 9
+                            : revCashWindow > 6
+                              ? 10
+                              : 11
+                          : 11,
                     }}
                     tickLine={false}
                     axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
