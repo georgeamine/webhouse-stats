@@ -271,6 +271,10 @@ function XeroPnlHeroCard({ xero }: { xero: XeroStatsSuccess }) {
     basis === "cash"
       ? { cur: xero.cashCollectedFyYtd, prior: xero.cashCollectedFyYtdPriorComparable }
       : { cur: xero.invoicedRevenueFyYtd, prior: xero.invoicedFyYtdPriorComparable };
+  const hasAnyBankBalance =
+    xero.bankBalances.transaction != null ||
+    xero.bankBalances.savings != null ||
+    xero.bankBalances.amexOwing != null;
 
   return (
     <div className="flex flex-col rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#121216] px-4 py-4 md:col-span-1">
@@ -419,6 +423,27 @@ function XeroPnlHeroCard({ xero }: { xero: XeroStatsSuccess }) {
             </div>
             {basis === "cash" && <CashGoalBar current={xero.cashCollectedFyYtd} goal={goals.yearly} />}
           </div>
+          {hasAnyBankBalance && (
+            <div className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[rgba(245,245,243,0.52)]">
+                Balance sheet ({fmtDate(xero.bankBalances.asAt)})
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-1.5 text-sm md:grid-cols-3">
+                <p className="flex items-baseline justify-between gap-2 tabular-nums text-[rgba(245,245,243,0.72)]">
+                  <span className="text-[rgba(245,245,243,0.5)]">Transaction</span>
+                  <span>{xero.bankBalances.transaction == null ? "—" : aud(xero.bankBalances.transaction, true)}</span>
+                </p>
+                <p className="flex items-baseline justify-between gap-2 tabular-nums text-[rgba(245,245,243,0.72)]">
+                  <span className="text-[rgba(245,245,243,0.5)]">Savings</span>
+                  <span>{xero.bankBalances.savings == null ? "—" : aud(xero.bankBalances.savings, true)}</span>
+                </p>
+                <p className="flex items-baseline justify-between gap-2 tabular-nums text-[rgba(245,245,243,0.72)]">
+                  <span className="text-[rgba(245,245,243,0.5)]">AMEX owing</span>
+                  <span>{xero.bankBalances.amexOwing == null ? "—" : aud(xero.bankBalances.amexOwing, true)}</span>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

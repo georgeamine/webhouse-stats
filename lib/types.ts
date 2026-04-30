@@ -33,6 +33,13 @@ export type XeroStatsBlock =
       overdueAr: number;
       /** Count of ACCREC invoices whose due date is before today. */
       overdueArCount: number;
+      /** Balance Sheet snapshots for key cash / card accounts (as at reporting date). */
+      bankBalances: {
+        asAt: string;
+        transaction: number | null;
+        savings: number | null;
+        amexOwing: number | null;
+      };
       /** Rolling 24 calendar months (oldest → newest); Xero returns 12 monthly columns per request (base + 11 comparisons), merged twice for coverage. UI: last 6 / 12 / 24. */
       revenueCashByMonth: {
         month: string;

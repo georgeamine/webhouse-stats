@@ -189,6 +189,13 @@ function parseMoney(s: string): number {
   return neg ? -n : n;
 }
 
+function parseMoneyNullable(s: string): number | null {
+  const t = s.trim();
+  if (!/[0-9]/.test(t)) return null;
+  const n = parseMoney(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 function rowTypeName(r: BareRow): string {
   const rt = r.rowType ?? r.RowType;
   if (rt === undefined || rt === null) return "";
@@ -236,6 +243,68 @@ function collectRowsFlat(body: unknown): BareRow[] {
   const out: BareRow[] = [];
   walkRows(top, (r) => out.push(r));
   return out;
+}
+
+function extractFirstAmountFromRow(r: BareRow): number | null {
+  const cells = getCells(r);
+  for (let i = 1; i < cells.length; i++) {
+    const n = parseMoneyNullable(cellStr(cells[i]));
+    if (n != null) return n;
+  }
+  return null;
+}
+
+function normalizeLabel(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function includesAllWords(label: string, words: string[]): boolean {
+  return words.every((w) => label.includes(w));
+}
+
+function pickBalanceByMatchers(
+  flat: BareRow[],
+  matchers: ((normalizedLabel: string) => boolean)[]
+): number | null {
+  for (const r of flat) {
+    if (isSummaryRow(r)) continue;
+    const label = normalizeLabel(rowPrimaryLabel(r));
+    if (!label) continue;
+    if (!matchers.some((m) => m(label))) continue;
+    const amount = extractFirstAmountFromRow(r);
+    if (amount != null) return amount;
+  }
+  return null;
+}
+
+function extractBalanceSheetKeyBalances(body: unknown): {
+  transaction: number | null;
+  savings: number | null;
+  amexOwing: number | null;
+} {
+  const flat = collectRowsFlat(body);
+
+  const transaction = pickBalanceByMatchers(flat, [
+    (l) => includesAllWords(l, ["transaction", "account"]),
+    (l) => l === "transaction",
+  ]);
+
+  const savings = pickBalanceByMatchers(flat, [
+    (l) => includesAllWords(l, ["savings", "account"]),
+    (l) => l === "savings",
+    (l) => l.includes("saving"),
+  ]);
+
+  const amexRaw = pickBalanceByMatchers(flat, [
+    (l) => l.includes("amex"),
+    (l) => includesAllWords(l, ["american", "express"]),
+  ]);
+
+  return {
+    transaction,
+    savings,
+    amexOwing: amexRaw == null ? null : Math.abs(amexRaw),
+  };
 }
 
 /** Parse header cell text to YYYY-MM (Xero AU formats vary). */
@@ -698,6 +767,7 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
 
     const now = new Date();
     const { y: cy, m: cm } = zonedYMD(now, tz);
+    const { day: cd } = zonedYMD(now, tz);
 
     const { cashMtdPeriodLabel, cashQtdPeriodLabel, cashFyPeriodLabel } = buildCashPeriodLabels(cy, cm);
 
@@ -708,6 +778,29 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
 
     const cashHero = derivePnlHeroFromMonthlyMap(cashByMonth, cy, cm);
     const accrualHero = derivePnlHeroFromMonthlyMap(accrualByMonth, cy, cm);
+    const balanceSheetAsAt = ymdString(cy, cm, cd);
+
+    let bankBalances: {
+      asAt: string;
+      transaction: number | null;
+      savings: number | null;
+      amexOwing: number | null;
+    } = {
+      asAt: balanceSheetAsAt,
+      transaction: null,
+      savings: null,
+      amexOwing: null,
+    };
+    try {
+      const bsRes = await withXeroRetry(() =>
+        (xero.accountingApi as unknown as {
+          getReportBalanceSheet: (xeroTenantId: string, date: string) => Promise<{ body: unknown }>;
+        }).getReportBalanceSheet(tenantId, balanceSheetAsAt)
+      );
+      bankBalances = { asAt: balanceSheetAsAt, ...extractBalanceSheetKeyBalances(bsRes.body) };
+    } catch {
+      // Keep dashboard live if Balance Sheet lookup fails or account names don't match.
+    }
 
     const arWhere = `Type=="ACCREC"&&Status=="AUTHORISED"&&AmountDue>0`;
     const arInvoices = await paginateInvoices(xero, tenantId, arWhere);
@@ -715,7 +808,7 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
     let outstandingArCount = 0;
     let overdueAr = 0;
     let overdueArCount = 0;
-    const todayYmd = ymdString(cy, cm, zonedYMD(now, tz).day);
+    const todayYmd = ymdString(cy, cm, cd);
     for (const inv of arInvoices) {
       const due = inv.amountDue ?? 0;
       if (due <= 0) continue;
@@ -769,6 +862,7 @@ export async function fetchXeroDashboardSlice(): Promise<XeroStatsBlock> {
       outstandingArCount,
       overdueAr,
       overdueArCount,
+      bankBalances,
       revenueCashByMonth: monthly,
     };
   } catch (e: unknown) {
